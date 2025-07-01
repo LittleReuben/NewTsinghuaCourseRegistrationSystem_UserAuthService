@@ -97,8 +97,8 @@ case object TokenProcess {
       isInvalidated <- tokenResult match {
         case Some(json) =>
           // Step 2: Check token validity and expiration
-          val expirationTime <- IO { decodeField[DateTime](json, "expiration_time") }
-          val currentTime <- IO { DateTime.now() }
+          val expirationTime = IO { decodeField[DateTime](json, "expiration_time") }
+          val currentTime = IO { DateTime.now() }
           
           if (expirationTime.isBefore(currentTime)) {
             IO(logger.info(s"[Step 2] token [${userToken}] 已过期，直接从数据库中移除")) >>
