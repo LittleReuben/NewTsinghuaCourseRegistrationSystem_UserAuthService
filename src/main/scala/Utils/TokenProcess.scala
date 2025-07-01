@@ -70,8 +70,6 @@ case object TokenProcess {
   
     } yield token
   }
-  
-  
   def invalidateToken(userToken: String)(using PlanContext): IO[Boolean] = {
   // val logger = LoggerFactory.getLogger("invalidateToken")  // 同文后端处理: logger 统一
   
@@ -97,8 +95,8 @@ case object TokenProcess {
       isInvalidated <- tokenResult match {
         case Some(json) =>
           // Step 2: Check token validity and expiration
-          val expirationTime = IO { decodeField[DateTime](json, "expiration_time") }
-          val currentTime = IO { DateTime.now() }
+          val expirationTime = decodeField[DateTime](json, "expiration_time")
+          val currentTime = DateTime.now()
           
           if (expirationTime.isBefore(currentTime)) {
             IO(logger.info(s"[Step 2] token [${userToken}] 已过期，直接从数据库中移除")) >>
@@ -115,6 +113,7 @@ case object TokenProcess {
       _ <- IO(logger.info(s"[结束] Token [${userToken}] 是否已成功使无效: ${isInvalidated}"))
     } yield isInvalidated
   }
+  // 修复编译错误的原因: 替换了 `expirationTime` 和 `currentTime` 变量的不正确封装 (去掉了 `IO`) 并保留了正确的调用 `isBefore`。
   
   
   def validateToken(userToken: String)(using PlanContext): IO[Boolean] = {
