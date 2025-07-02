@@ -83,8 +83,7 @@ case class UserLoginMessagePlanner(
   }
 
   private def verifyPassword(hashedPasswordInDB: String)(using PlanContext): IO[Unit] = {
-    val saltedPasswordInput = password + "salt" // 假设盐是固定字符串，仅作为示例
-    val hashedPasswordInput = saltedPasswordInput.hashCode.toString // 简单哈希处理
+    val hashedPasswordInput = java.security.MessageDigest.getInstance("SHA-256").digest(password.getBytes("UTF-8")).map("%02x".format(_)).mkString
 
     if (hashedPasswordInDB == hashedPasswordInput) {
       IO(logger.info(s"[verifyPassword] 验证密码成功")).void
