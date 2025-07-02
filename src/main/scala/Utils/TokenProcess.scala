@@ -63,7 +63,7 @@ case object TokenProcess {
         List(
           SqlParameter("String", token),
           SqlParameter("Int", userID.toString),
-          SqlParameter("Long", expirationTime.getMillis.toString)
+          SqlParameter("TimeStamp", expirationTime.getMillis.toString)
         )
       )
       _ <- IO(logger.info(s"[generateToken] Token写入数据库完成"))
