@@ -54,7 +54,7 @@ case class UserLoginMessagePlanner(
       token <- generateToken(userID)
 
       // Step 4: 写入Token到UserTokenTable
-      _ <- writeTokenToDatabase(token, userID)
+//      _ <- writeTokenToDatabase(token, userID)
 
       _ <- IO(logger.info(s"[UserLoginMessagePlanner] 登录成功，返回Token=${token}"))
     } yield token
