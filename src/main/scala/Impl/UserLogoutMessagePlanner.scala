@@ -1,10 +1,5 @@
 package Impl
 
-/**
- * UserLogoutMessagePlanner: 用户登出操作的实现
- * 输入参数: userToken : String
- * 输出参数: result : String
- */
 
 import Common.API.{PlanContext, Planner}
 import Common.DBAPI._
@@ -40,34 +35,18 @@ case class UserLogoutMessagePlanner(
 
   override def plan(using PlanContext): IO[String] = {
     for {
-      // Step 1: Log token invalidation progress
-      _ <- IO(logger.info(s"[Step 1] 开始注销用户的Token: ${userToken}"))
-      
-      // Step 2: Perform token invalidation
-      isInvalidated <- performTokenInvalidation(userToken)
-      _ <- IO(logger.info(s"[Step 2] Token [${userToken}] 是否成功无效化: ${isInvalidated}"))
-      
-      // Step 3: Return the result based on the invalidation outcome
+      _ <- IO(logger.info(s"[plan] 开始注销用户的 token = ${userToken}"))
+
+      isInvalidated <- invalidateToken(userToken)
+      _ <- IO(logger.info(s"[plan] 调用 invalidateToken 完成，结果 = ${isInvalidated}"))
+
       resultMessage <- if (isInvalidated) {
-        IO(logger.info(s"[Step 3] Token [${userToken}] 已成功登出")) >>
+        IO(logger.info(s"[plan] token ${userToken} 已成功登出")) >>
         IO("登出成功！")
       } else {
-        IO(logger.warn(s"[Step 3] Token [${userToken}] 登出失败")) >>
+        IO(logger.warn(s"[plan] token ${userToken} 登出失败")) >>
         IO("登出失败！")
       }
     } yield resultMessage
-  }
-
-  /**
-   * Helper function to perform token invalidation using the library method.
-   * @param token The user token to invalidate.
-   * @return IO[Boolean] indicating whether the invalidation was successful.
-   */
-  private def performTokenInvalidation(token: String)(using PlanContext): IO[Boolean] = {
-    for {
-      _ <- IO(logger.info(s"[Helper] 即将调用invalidateToken方法使token无效化: ${token}"))
-      isInvalidated <- invalidateToken(token)
-      _ <- IO(logger.info(s"[Helper] 调用invalidateToken完成，结果: ${isInvalidated}"))
-    } yield isInvalidated
   }
 }

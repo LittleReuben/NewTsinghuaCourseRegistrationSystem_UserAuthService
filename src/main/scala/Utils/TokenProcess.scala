@@ -23,11 +23,10 @@ case object TokenProcess {
   
   
   def generateToken(userID: Int)(using PlanContext): IO[String] = {
-  // val logger = LoggerFactory.getLogger("generateToken")  // 同文后端处理: logger 统一
-    logger.info(s"[generateToken] 开始生成用户Token，userID=${userID}")
+    logger.info(s"[generateToken] 开始生成用户 token，userID = ${userID}")
   
     for {
-      // Step 1: 验证userID是否存在
+      // 验证userID是否存在
       checkUserSQL <- IO {
         s"""
            SELECT user_id
@@ -35,23 +34,23 @@ case object TokenProcess {
            WHERE user_id = ?;
          """
       }
-      _ <- IO(logger.info(s"[generateToken] 检查用户是否存在，SQL=${checkUserSQL}"))
+      _ <- IO(logger.info(s"[generateToken] 检查用户是否存在，SQL = ${checkUserSQL}"))
       userOptional <- readDBJsonOptional(checkUserSQL, List(SqlParameter("Int", userID.toString)))
   
       _ <- userOptional match {
         case None =>
-          IO.raiseError(new IllegalArgumentException(s"[generateToken] userID=${userID}不存在"))
+          IO.raiseError(new IllegalArgumentException(s"[generateToken] userID = ${userID} 不存在"))
         case Some(_) =>
-          IO(logger.info(s"[generateToken] userID=${userID}存在"))
+          IO(logger.info(s"[generateToken] userID = ${userID} 存在"))
       }
   
-      // Step 2: 创建Token和过期时间
+      // 创建 token 和过期时间
       token <- IO(java.util.UUID.randomUUID().toString)
-      expirationTime <- IO(DateTime.now.plusHours(1)) // Token有效期为1小时
+      expirationTime <- IO(DateTime.now.plusHours(1)) // token 有效期 1h
   
-      _ <- IO(logger.info(s"[generateToken] 为userID=${userID}生成的token=${token}, 过期时间=${expirationTime}"))
+      _ <- IO(logger.info(s"[generateToken] 为 userID = ${userID} 生成的 token = ${token}，过期时间 = ${expirationTime}"))
   
-      // Step 3: 将Token写入数据库
+      // 将 token 写入数据库
       insertTokenSQL <- IO {
         s"""
            INSERT INTO ${schemaName}.user_token_table (token, user_id, expiration_time)
@@ -66,13 +65,10 @@ case object TokenProcess {
           SqlParameter("DateTime", expirationTime.getMillis.toString)
         )
       )
-      _ <- IO(logger.info(s"[generateToken] Token写入数据库完成"))
-  
+      _ <- IO(logger.info(s"[generateToken] token 写入数据库完成"))
     } yield token
   }
   def invalidateToken(userToken: String)(using PlanContext): IO[Boolean] = {
-  // val logger = LoggerFactory.getLogger("invalidateToken")  // 同文后端处理: logger 统一
-  
     // SQL statements
     val queryTokenSql = 
       s"""
@@ -88,46 +84,37 @@ case object TokenProcess {
        """
   
     for {
-      // Step 1: Validate token existence
-      _ <- IO(logger.info(s"[Step 1] 检查 token [${userToken}] 是否存在"))
+      // 检查 token 是否存在
+      _ <- IO(logger.info(s"[invalidateToken] 检查 token = ${userToken} 是否存在"))
       tokenResult <- readDBJsonOptional(queryTokenSql, List(SqlParameter("String", userToken)))
   
       isInvalidated <- tokenResult match {
         case Some(json) =>
-          // Step 2: Check token validity and expiration
+          // 检查 token 的合法性
           val expirationTime = decodeField[DateTime](json, "expiration_time")
           val currentTime = DateTime.now()
           
-          if (expirationTime.isBefore(currentTime)) {
-            IO(logger.info(s"[Step 2] token [${userToken}] 已过期，直接从数据库中移除")) >>
+          IO(logger.info(s"[invalidateToken] 将 token = ${userToken} 从数据库中移除")) >>
             writeDB(invalidateTokenSql, List(SqlParameter("String", userToken))).map(_ => true)
-          } else {
-            IO(logger.info(s"[Step 2] token [${userToken}] 尚未过期，同样从数据库中移除")) >>
-            writeDB(invalidateTokenSql, List(SqlParameter("String", userToken))).map(_ => true)
-          }
         case None =>
-          IO(logger.info(s"[Step 1] token [${userToken}] 不存在，操作失败")) >>
+          IO(logger.info(s"[invalidateToken] token = ${userToken} 不存在，操作失败")) >>
           IO(false)
       }
   
-      _ <- IO(logger.info(s"[结束] Token [${userToken}] 是否已成功使无效: ${isInvalidated}"))
+      _ <- IO(logger.info(s"[invalidateToken] token = ${userToken} 是否已成功使无效: ${isInvalidated}"))
     } yield isInvalidated
   }
-  // 修复编译错误的原因: 替换了 `expirationTime` 和 `currentTime` 变量的不正确封装 (去掉了 `IO`) 并保留了正确的调用 `isBefore`。
-  
-  
+
   def validateToken(userToken: String)(using PlanContext): IO[Boolean] = {
-  // val logger = LoggerFactory.getLogger("TokenValidation")  // 同文后端处理: logger 统一
     for {
-      _ <- IO(logger.info(s"[validateToken] 开始验证Token: ${userToken}"))
-  
-      // 构造 SQL 查询
+      _ <- IO(logger.info(s"[validateToken] 开始验证 token = ${userToken}"))
+
       querySql <- IO {
         s"""
-SELECT token, expiration_time
-FROM ${schemaName}.user_token_table
-WHERE token = ?;
-         """.stripMargin
+          SELECT token, expiration_time
+          FROM ${schemaName}.user_token_table
+          WHERE token = ?;
+        """.stripMargin
       }
       parameters <- IO {
         List(SqlParameter("String", userToken))
@@ -137,21 +124,21 @@ WHERE token = ?;
       tokenRecordOption <- readDBJsonOptional(querySql, parameters)
       _ <- IO(logger.info(s"[validateToken] 查询结果: ${tokenRecordOption}"))
   
-      // 检查Token的有效性
+      // 检查 token 的有效性
       isValid <- IO {
         tokenRecordOption match {
           case Some(json) =>
             val expirationTime = decodeField[DateTime](json, "expiration_time")
             val currentTime = DateTime.now
             if (expirationTime.isAfter(currentTime)) {
-              logger.info(s"[validateToken] Token有效，未过期。Token=${userToken}, 过期时间=${expirationTime}")
+              logger.info(s"[validateToken] token 有效，未过期。token = ${userToken}，过期时间 = ${expirationTime}")
               true
             } else {
-              logger.info(s"[validateToken] Token无效，已过期。Token=${userToken}, 当前时间=${currentTime}, 过期时间=${expirationTime}")
+              logger.info(s"[validateToken] token 无效，已过期。token = ${userToken}，当前时间 = ${currentTime}，过期时间 = ${expirationTime}")
               false
             }
           case None =>
-            logger.info(s"[validateToken] 未找到Token记录，验证失败。Token=${userToken}")
+            logger.info(s"[validateToken] 未找到 token 记录，验证失败。token = ${userToken}")
             false
         }
       }

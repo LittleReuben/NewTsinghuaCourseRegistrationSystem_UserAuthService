@@ -36,15 +36,15 @@ case class VerifyTokenValidityMessagePlanner(
 
   override def plan(using PlanContext): IO[Boolean] = {
     for {
-      _ <- IO(logger.info(s"[VerifyTokenValidity] 开始验证用户Token: ${userToken}"))
+      _ <- IO(logger.info(s"[plan] 开始验证用户 token = ${userToken}"))
 
-      // 第一步：调用 validateToken 方法验证 token 的初步有效性
+      // 调用 validateToken 方法初步验证 token 的有效性
       validationResult <- validateToken(userToken)
-      _ <- IO(logger.info(s"[VerifyTokenValidity] validateToken 验证结果: ${validationResult}"))
+      _ <- IO(logger.info(s"[plan] validateToken 验证结果: ${validationResult}"))
 
       // 如果验证初步无效，直接返回 false，否则进入检查过期时间
       isValid <- if (!validationResult) {
-        IO(logger.info(s"[VerifyTokenValidity] Token验证失败"))
+        IO(logger.info(s"[plan] token 验证失败"))
         IO(false)
       } else {
         checkExpiration(userToken)
@@ -53,24 +53,20 @@ case class VerifyTokenValidityMessagePlanner(
   }
 
   private def checkExpiration(userToken: String)(using PlanContext): IO[Boolean] = {
+    val query =
+      s"""
+         SELECT expiration_time
+         FROM ${schemaName}.user_token_table
+         WHERE token = ?;
+      """
+    val parameters = List(SqlParameter("String", userToken))
+
     for {
-      _ <- IO(logger.info(s"[VerifyTokenValidity] 开始检查Token的过期时间"))
+      _ <- IO(logger.info(s"[checkExpiration] 开始检查 token 的过期时间"))
 
-      // 语句和参数准备
-      querySql <- IO {
-        s"""
-           SELECT expiration_time
-           FROM ${schemaName}.user_token_table
-           WHERE token = ?;
-         """.stripMargin
-      }
-      parameters <- IO {
-        List(SqlParameter("String", userToken))
-      }
-
-      // 查询数据库获取Token的过期时间
-      expirationTimeOption <- readDBJsonOptional(querySql, parameters)
-      _ <- IO(logger.info(s"[VerifyTokenValidity] 数据库查询结果: ${expirationTimeOption}"))
+      // 查询数据库获取 token 的过期时间
+      expirationTimeOption <- readDBJsonOptional(query, parameters)
+      _ <- IO(logger.info(s"[checkExpiration] 数据库查询结果: ${expirationTimeOption}"))
 
       // 验证过期时间的逻辑
       isValid <- IO {
@@ -79,14 +75,14 @@ case class VerifyTokenValidityMessagePlanner(
             val expirationTime = decodeField[DateTime](json, "expiration_time")
             val currentTime = DateTime.now
             if (expirationTime.isAfter(currentTime)) {
-              logger.info(s"[VerifyTokenValidity] Token未过期，验证成功。当前时间: ${currentTime}, Token过期时间: ${expirationTime}")
+              logger.info(s"[checkExpiration] token 未过期，验证成功。当前时间 = ${currentTime}，token 过期时间 = ${expirationTime}")
               true
             } else {
-              logger.info(s"[VerifyTokenValidity] Token已过期，验证失败。当前时间: ${currentTime}, Token过期时间: ${expirationTime}")
+              logger.info(s"[checkExpiration] token 已过期，验证失败。当前时间 = ${currentTime}，token 过期时间 = ${expirationTime}")
               false
             }
           case None =>
-            logger.info(s"[VerifyTokenValidity] 在数据库中未找到对应的Token记录，验证失败")
+            logger.info(s"[checkExpiration] 在数据库中未找到对应的 token 记录，验证失败")
             false
         }
       }
